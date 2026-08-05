@@ -104,3 +104,4 @@ bash scripts/verify-kubernetes.sh
 
 See `docs/ckad-checklist.md` for the current gap list and `docs/architecture.md`
 for service communication.
+# CKAD
