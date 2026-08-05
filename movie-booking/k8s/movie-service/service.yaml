@@ -1,0 +1,20 @@
+# service.yaml
+#
+# DIEM QUAN TRONG NHAT CAN CHU Y: "port: 8080" nhung "targetPort: 9090".
+# Nguoi goi (booking-service, api-gateway...) van thay Service nay o port
+# 8080 (khong doi gi so voi docker-compose) - nhung traffic THUC SU di vao
+# container nginx-ambassador (port 9090) TRUOC, roi ambassador moi forward
+# tiep vao container "app" (port 8080) qua localhost. Day la co che k8s
+# Service chi quan tam "cong logic" ben ngoai, con "targetPort" moi la noi
+# traffic thuc su cham vao trong Pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-service
+  namespace: movie-booking
+spec:
+  selector:
+    app: movie-service
+  ports:
+    - port: 8080
+      targetPort: 9090

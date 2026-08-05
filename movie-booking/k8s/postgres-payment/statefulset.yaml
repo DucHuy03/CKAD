@@ -1,0 +1,75 @@
+# statefulset.yaml - Postgres cho movie-service.
+#
+# volumeClaimTemplates: STATEFULSET TU TAO 1 PVC RIENG cho moi Pod replica
+# (khac PVC khai bao roi trong o Deployment - noi MOI Pod dung CHUNG 1 PVC,
+# khong phu hop voi database vi 2 Postgres instance khong the cung ghi vao
+# 1 thu muc data). Voi 1 replica nhu o day, se tao ra 1 PVC ten
+# "data-postgres-payment-0".
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres-payment
+  namespace: movie-booking
+spec:
+  serviceName: postgres-payment # PHAI trung ten voi Service headless ben duoi
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-payment
+  template:
+    metadata:
+      labels:
+        app: postgres-payment
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: postgres-payment-secret
+          env:
+            - name: POSTGRES_DB
+              value: payment_service
+            # PGDATA tro vao 1 THU MUC CON cua mount point (khong phai chinh
+            # mount point) - day la 1 "gotcha" kinh dien: neu de PGDATA mac
+            # dinh la /var/lib/postgresql/data, Postgres se initdb ngay tai
+            # goc volume, noi co the da chua thu muc an "lost+found" (do
+            # 1 so storage provisioner tu tao) khien initdb bao loi
+            # "directory not empty". Tro vao subfolder /pgdata tranh han
+            # van de nay hoan toan.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        # Khong ghi ro storageClassName -> dung StorageClass mac dinh cua
+        # cluster (Docker Desktop k8s co san 1 cai, ho tro dynamic
+        # provisioning - khong can tao PV thu cong).

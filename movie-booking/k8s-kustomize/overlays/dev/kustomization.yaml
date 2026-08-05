@@ -1,0 +1,34 @@
+# overlays/dev/kustomization.yaml
+#
+# Toan bo file nay chi ~10 dong nhung dai dien cho 1 bo Deployment+Service+
+# ConfigMap+Secret HOAN CHINH rieng cho moi truong "dev" - day chinh la
+# diem manh cot loi cua Kustomize: KHONG COPY LAI TOAN BO 4 FILE goc, chi
+# khai bao PHAN KHAC BIET.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: lab
+
+# namePrefix: moi resource sinh ra se co ten "dev-movie-service",
+# "dev-movie-service-config"... Kustomize TU DONG cap nhat lai moi tham
+# chieu noi bo (Deployment.envFrom.configMapRef.name...) theo ten moi -
+# khong can tu sua tay cho khop.
+namePrefix: dev-
+
+resources:
+  - ../../base/movie-service
+
+# Doi image tag ma KHONG DUNG SED, KHONG SUA deployment.yaml goc.
+# "name: movie-service" khop VOI CA container "app" LAN initContainer
+# "init-db-migrate" (vi ca 2 cung dung image "movie-service:latest" trong
+# base) - ca 2 se cung duoc doi sang tag "v1", dam bao init va app luon
+# CHAY CUNG 1 PHIEN BAN code, tranh tinh huong init container migrate theo
+# schema cua bang code cu trong khi app lai chay code moi.
+images:
+  - name: movie-service
+    newTag: v1
+
+# dev chi can 1 replica, tiet kiem tai nguyen may local.
+replicas:
+  - name: movie-service
+    count: 1

@@ -1,0 +1,12 @@
+# base/movie-service/kustomization.yaml
+#
+# Base KHONG chua gia tri moi truong cu the (khong biet "dev" hay "prod")
+# - chi liet ke cac resource "goc". Moi thu can KHAC NHAU giua moi truong
+# (image tag, so luong replica...) deu nam o overlay, khong sua o day.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml

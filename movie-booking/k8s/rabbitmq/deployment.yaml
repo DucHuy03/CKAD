@@ -1,0 +1,61 @@
+# deployment.yaml - RabbitMQ.
+#
+# CO Y DUNG "rabbitmq:3.13-management" (Debian-based), KHONG dung ban
+# "-alpine": o Phase 1 (docker-compose) da gap loi that su
+# "Error when reading /var/lib/rabbitmq/.erlang.cookie: eacces" voi ban
+# alpine tren Docker Desktop, do van de permission voi lop filesystem ao
+# hoa (gRPC-FUSE/VirtioFS). Vi k8s cua Docker Desktop chay TRONG CUNG 1 VM
+# do, rui ro gap lai loi tuong tu la co that - dung luon ban Debian tu dau
+# de tranh phai debug lai van de da biet.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: movie-booking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management
+          ports:
+            - containerPort: 5672
+              name: amqp
+            - containerPort: 15672
+              name: management
+          envFrom:
+            - secretRef:
+                name: rabbitmq-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/rabbitmq
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rabbitmq-data

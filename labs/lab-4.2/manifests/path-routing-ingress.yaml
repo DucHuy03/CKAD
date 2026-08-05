@@ -1,0 +1,16 @@
+# Requires lab41 services and an ingress-nginx controller.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: { name: lab42-path-routing, namespace: lab }
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: lab.ticket-booking.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: lab41-frontend, port: { number: 80 } } }
+          - path: /api
+            pathType: Prefix
+            backend: { service: { name: lab41-backend, port: { number: 80 } } }

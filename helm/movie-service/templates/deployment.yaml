@@ -1,0 +1,32 @@
+# Helm package intentionally uses an existing runtime Secret created by
+# scripts/create-secrets.sh, so Helm values never contain credentials.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "movie-service.fullname" . }}
+  labels: {{- include "movie-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: {{- include "movie-service.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "movie-service.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: movie-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: movie-service-config }
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe: { httpGet: { path: /ready, port: http } }
+          livenessProbe: { httpGet: { path: /healthz, port: http } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }

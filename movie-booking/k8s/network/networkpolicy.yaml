@@ -1,0 +1,63 @@
+# Default-deny ingress establishes isolation; the explicit rules below permit
+# only gateway-to-service HTTP traffic used by the application.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: movie-booking
+spec:
+  # Limit the initial policy to API Pods. Stateful dependencies remain outside
+  # this policy until their full DB/broker allow-list is added.
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [api-gateway, movie-service, booking-service, payment-service, notification-service]
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-apis
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [movie-service, booking-service, payment-service, notification-service]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        # Gateway is the public application entry point; services also make
+        # the documented booking→movie and payment→booking calls.
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [api-gateway, booking-service, payment-service]
+      ports:
+        - protocol: TCP
+          port: 9090
+---
+# Ingress controller traffic is allowed only to public gateway/catalog paths.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [api-gateway, movie-service]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 9090

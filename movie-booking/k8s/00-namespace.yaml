@@ -1,0 +1,15 @@
+# 00-namespace.yaml
+#
+# Namespace "movie-booking" va "lab" da duoc tao bang lenh imperative
+# (kubectl create ns) o Phase 0. File nay CHI de tai lap lai duoc bang
+# "kubectl apply -f" (vi du khi xoa nham cluster, hoac setup lai tren may
+# khac) - kubectl apply se KHONG loi neu namespace da ton tai san.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: movie-booking
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: lab

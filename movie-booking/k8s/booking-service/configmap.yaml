@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: booking-service-config
+  namespace: movie-booking
+data:
+  DB_HOST: postgres-booking
+  DB_PORT: "5432"
+  DB_NAME: booking_service
+  DB_SSLMODE: disable
+  REDIS_ADDR: "redis:6379"
+  HOLD_TTL_SECONDS: "300"
+  # http://movie-service:8080 - GIONG HET gia tri dung trong docker-compose.
+  # Vi Service cua movie-service van expose port 8080 (chi targetPort ben
+  # trong doi thanh ambassador 9090, xem movie-service/service.yaml), goi
+  # tu ben ngoai Pod hoan toan khong can biet gi ve thay doi kien truc do.
+  MOVIE_SERVICE_URL: "http://movie-service:8080"
+  HTTP_PORT: "8080"
+  LOG_FILE_PATH: /var/log/app/app.log

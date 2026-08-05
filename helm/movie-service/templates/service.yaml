@@ -1,0 +1,12 @@
+# ClusterIP is the east-west service used by other in-cluster components.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "movie-service.fullname" . }}
+spec:
+  type: ClusterIP
+  selector: {{- include "movie-service.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

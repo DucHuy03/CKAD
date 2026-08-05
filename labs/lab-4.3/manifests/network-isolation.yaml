@@ -1,0 +1,15 @@
+# Default-deny then allow only frontend-to-backend HTTP in the lab namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: lab43-default-deny, namespace: lab }
+spec: { podSelector: {}, policyTypes: [Ingress, Egress] }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: lab43-allow-frontend-backend, namespace: lab }
+spec:
+  podSelector: { matchLabels: { app: lab41-backend } }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app: lab41-frontend } } }]
+      ports: [{ protocol: TCP, port: 80 }]

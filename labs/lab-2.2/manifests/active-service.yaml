@@ -1,0 +1,16 @@
+# service.yaml - luc dau selector tro vao "blue" (version: blue).
+# Chuyen sang green bang lenh "kubectl patch" (xem huong dan), KHONG can
+# apply lai file nay - day chinh la diem mau chot cua Blue/Green: chuyen
+# doi qua 1 lenh don, khong can rollout tuan tu.
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-service-bluegreen
+  namespace: lab
+spec:
+  selector:
+    app: movie-service-bluegreen
+    version: blue
+  ports:
+    - port: 8080
+      targetPort: 8080

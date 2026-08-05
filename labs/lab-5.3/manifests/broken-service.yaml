@@ -1,0 +1,7 @@
+# Intentionally wrong: targetPort 8080 has no matching container port.
+apiVersion: v1
+kind: Service
+metadata: { name: lab53-broken, namespace: lab }
+spec:
+  selector: { app: does-not-exist }
+  ports: [{ port: 80, targetPort: 8080 }]

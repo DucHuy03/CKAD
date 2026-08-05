@@ -1,0 +1,54 @@
+# lab-3.2-solution.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: movie-service-locked-down
+  namespace: lab
+  labels:
+    app: movie-service-locked-down
+spec:
+  # securityContext o CAP POD ap dung cho MOI container trong Pod (tru khi
+  # container tu override bang securityContext rieng cua no).
+  securityContext:
+    runAsNonRoot: true
+    # fsGroup: k8s se CHOWN group cua moi volume trong Pod sang GID nay,
+    # VA them GID nay lam "supplemental group" cho process trong container -
+    # dam bao container ghi duoc vao volume du UID chinh xac cua user "app"
+    # trong image la bao nhieu (khong can biet truoc con so do).
+    fsGroup: 1000
+
+  containers:
+    - name: app
+      image: movie-service:1.0.0
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: DB_HOST
+          value: postgres-movie.movie-booking.svc.cluster.local
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: movie_service
+        - name: DB_USER
+          value: postgres
+        - name: DB_PASSWORD
+          valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }
+        - name: LOG_FILE_PATH
+          value: /var/log/app/app.log
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: app-logs
+          mountPath: /var/log/app
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 8080
+        initialDelaySeconds: 3
+        periodSeconds: 5
+
+  volumes:
+    - name: app-logs
+      emptyDir: {}

@@ -1,0 +1,43 @@
+# deployment.yaml - Redis dung cho booking-service (giu ghe co TTL).
+#
+# Dung Deployment thay vi StatefulSet: Redis o day chi phuc vu 1 nhu cau
+# don gian (key-value voi TTL), khong can danh tinh Pod on dinh nhu Postgres
+# (khong co "du lieu rieng theo tung Pod" can phan biet) - neu sau nay can
+# Redis Cluster/Sentinel that su thi moi can StatefulSet.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: movie-booking
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi

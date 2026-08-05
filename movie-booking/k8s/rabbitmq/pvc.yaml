@@ -1,0 +1,17 @@
+# pvc.yaml
+#
+# Khac voi Postgres (StatefulSet tu dong tao PVC qua volumeClaimTemplates),
+# RabbitMQ o day dung Deployment nen PVC phai duoc khai bao THU CONG rieng,
+# roi Deployment tham chieu toi bang ten. Luu y: PVC nay dung
+# accessMode ReadWriteOnce - CHI 1 Pod gan duoc tai 1 thoi diem, phu hop
+# vi Deployment o day cung chi chay 1 replica.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data
+  namespace: movie-booking
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

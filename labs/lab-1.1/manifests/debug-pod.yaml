@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: movie-catalog-debug
+    component: movie-service
+    tier: diagnostics
+  name: movie-catalog-debug
+spec:
+  containers:
+  - env:
+    - name: DB_HOST
+      value: postgres-movie.movie-booking.svc.cluster.local
+    - name: DB_PORT
+      value: "5432"
+    - name: DB_NAME
+      value: movie_service
+    # Mat khau khong nam trong manifest. Runner tao Secret lab-db-credentials
+    # tu bien LAB_DB_PASSWORD truoc khi tao Pod.
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: lab-db-credentials
+          key: DB_PASSWORD
+    image: movie-service:1.0.0
+    imagePullPolicy: IfNotPresent
+    name: movie-catalog-debug
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+  dnsPolicy: ClusterFirst
+  restartPolicy: Never
+status: {}

@@ -1,0 +1,34 @@
+# expired-hold-cleanup-cronjob.yaml — scheduled expired-seat-hold cleanup.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: booking-cleanup-cronjob
+  namespace: lab
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: booking-cleanup
+              image: booking-service:1.0.0
+              imagePullPolicy: IfNotPresent
+              args: ["-cleanup-expired-holds"]
+              env:
+                - name: DB_HOST
+                  value: postgres-booking.movie-booking.svc.cluster.local
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_NAME
+                  value: booking_service
+                - name: DB_USER
+                  value: postgres
+                - name: DB_PASSWORD
+                  valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }
+                - name: REDIS_ADDR
+                  value: redis.movie-booking.svc.cluster.local:6379

@@ -1,0 +1,23 @@
+# service.yaml
+#
+# clusterIP: None -> "headless Service". Voi Service thuong (co ClusterIP),
+# k8s tao 1 IP ao dai dien chung, tu dong load-balance giua cac Pod phia
+# sau - phu hop khi cac Pod GIONG NHAU, khong quan tam goi toi Pod nao.
+# Voi StatefulSet thi NGUOC LAI: can biet CHINH XAC dang noi voi Pod/replica
+# nao (vi moi Pod co du lieu rieng) - headless Service cho phep DNS phan
+# giai truc tiep toi tung Pod qua ten "postgres-payment-0.postgres-payment...",
+# day la pattern chuan luon di kem StatefulSet, ke ca khi chi co 1 replica
+# nhu hien tai (giu dung convention de sau nay scale len nhieu replica
+# khong phai doi kien truc).
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-payment
+  namespace: movie-booking
+spec:
+  clusterIP: None
+  selector:
+    app: postgres-payment
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,318 @@
+# docker-compose.yml - test toàn bộ các service với DB/Redis thật, trước khi lên k8s.
+#
+# Ý đồ 1: mô phỏng đúng thứ tự init-container -> app-container bằng
+# "depends_on ... condition: service_completed_successfully" - service
+# "*-migrate" phải chạy XONG (exit 0) thì service chính mới start. Đây chính
+# là hành vi initContainer sẽ tái hiện ở Phase 4 trên k8s.
+#
+# Ý đồ 2: mỗi microservice có 1 Postgres RIÊNG (database-per-service) -
+# postgres-movie cho movie-service, postgres-booking cho booking-service -
+# đúng nguyên tắc microservices: service khác không được đọc thẳng DB của
+# service này, chỉ được gọi qua API.
+
+services:
+  # ---------- Hạ tầng cho movie-service ----------
+  postgres-movie:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: movie_service
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_movie_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  movie-service-migrate:
+    build: ./movie-service
+    command: ["-wait-db", "-migrate"]
+    environment:
+      DB_HOST: postgres-movie
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: movie_service
+      DB_SSLMODE: disable
+    depends_on:
+      postgres-movie:
+        condition: service_healthy
+
+  movie-service:
+    build: ./movie-service
+    ports:
+      - "8081:8080"
+    environment:
+      DB_HOST: postgres-movie
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: movie_service
+      DB_SSLMODE: disable
+      HTTP_PORT: "8080"
+    depends_on:
+      postgres-movie:
+        condition: service_healthy
+      movie-service-migrate:
+        condition: service_completed_successfully
+
+  # ---------- Hạ tầng cho booking-service ----------
+  postgres-booking:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: booking_service
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_booking_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  booking-service-migrate:
+    build: ./booking-service
+    command: ["-wait-db", "-wait-redis", "-migrate"]
+    environment:
+      DB_HOST: postgres-booking
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: booking_service
+      DB_SSLMODE: disable
+      REDIS_ADDR: "redis:6379"
+    depends_on:
+      postgres-booking:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  booking-service:
+    build: ./booking-service
+    ports:
+      - "8082:8080"
+    environment:
+      DB_HOST: postgres-booking
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: booking_service
+      DB_SSLMODE: disable
+      REDIS_ADDR: "redis:6379"
+      HOLD_TTL_SECONDS: "300"
+      # Goi thang movie-service qua service name cua compose (chua co
+      # ambassador nginx - se doi thanh localhost:<port> khi lam Phase 4 tren k8s).
+      MOVIE_SERVICE_URL: "http://movie-service:8080"
+      HTTP_PORT: "8080"
+    depends_on:
+      postgres-booking:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      booking-service-migrate:
+        condition: service_completed_successfully
+      movie-service:
+        condition: service_started
+
+  # ---------- Hạ tầng cho payment-service ----------
+  postgres-payment:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: payment_service
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      # Keep broker credentials in local .env, consistent with Kubernetes.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+    ports:
+      - "5672:5672"   # AMQP protocol - cac service ket noi qua port nay
+      - "15672:15672" # Web UI quan ly, xem queue/exchange truc quan (guest/guest)
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  payment-service-migrate:
+    build: ./payment-service
+    command: ["-wait-db", "-wait-rabbitmq", "-migrate"]
+    environment:
+      DB_HOST: postgres-payment
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: payment_service
+      DB_SSLMODE: disable
+      RABBITMQ_URL: "amqp://${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/"
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "8083:8080"
+    environment:
+      DB_HOST: postgres-payment
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: payment_service
+      DB_SSLMODE: disable
+      RABBITMQ_URL: "amqp://${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/"
+      BOOKING_SERVICE_URL: "http://booking-service:8080"
+      HTTP_PORT: "8080"
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      payment-service-migrate:
+        condition: service_completed_successfully
+      booking-service:
+        condition: service_started
+
+  # ---------- Hạ tầng cho notification-service ----------
+  postgres-notification:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      POSTGRES_DB: notification_service
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg_notification_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  # MailHog: SMTP server gia lap chi dung de TEST, khong gui email that ra
+  # internet. Xem lai email da "gui" tai Web UI http://localhost:8025
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025" # SMTP port - notification-service ket noi vao day
+      - "8025:8025" # Web UI
+
+  notification-service-migrate:
+    build: ./notification-service
+    command: ["-wait-db", "-wait-rabbitmq", "-migrate"]
+    environment:
+      DB_HOST: postgres-notification
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: notification_service
+      DB_SSLMODE: disable
+      RABBITMQ_URL: "amqp://${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/"
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "8084:8080"
+    environment:
+      DB_HOST: postgres-notification
+      DB_PORT: "5432"
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_NAME: notification_service
+      DB_SSLMODE: disable
+      RABBITMQ_URL: "amqp://${RABBITMQ_USERNAME:?Set RABBITMQ_USERNAME in .env}:${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}@rabbitmq:5672/"
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      MAIL_FROM: "booking@movie-booking.local"
+      HTTP_PORT: "8080"
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+      notification-service-migrate:
+        condition: service_completed_successfully
+
+  # ---------- api-gateway (entry point, khong co DB rieng) ----------
+  api-gateway-init:
+    build: ./api-gateway
+    command: ["-wait-backends"]
+    environment:
+      MOVIE_SERVICE_URL: "http://movie-service:8080"
+      BOOKING_SERVICE_URL: "http://booking-service:8080"
+      PAYMENT_SERVICE_URL: "http://payment-service:8080"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8080"
+    depends_on:
+      movie-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      MOVIE_SERVICE_URL: "http://movie-service:8080"
+      BOOKING_SERVICE_URL: "http://booking-service:8080"
+      PAYMENT_SERVICE_URL: "http://payment-service:8080"
+      NOTIFICATION_SERVICE_URL: "http://notification-service:8080"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_EXPIRY_MINUTES: "60"
+      RATE_LIMIT_PER_MINUTE: "60"
+      HTTP_PORT: "8080"
+    depends_on:
+      api-gateway-init:
+        condition: service_completed_successfully
+
+volumes:
+  pg_movie_data:
+  pg_booking_data:
+  pg_payment_data:
+  pg_notification_data:
+  rabbitmq_data:

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payment-service-config
+  namespace: movie-booking
+data:
+  DB_HOST: postgres-payment
+  DB_PORT: "5432"
+  DB_NAME: payment_service
+  DB_SSLMODE: disable
+  BOOKING_SERVICE_URL: "http://booking-service:8080"
+  HTTP_PORT: "8080"
+  LOG_FILE_PATH: /var/log/app/app.log

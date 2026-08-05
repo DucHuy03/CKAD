@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-service-blue
+  namespace: lab
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: movie-service-bluegreen
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: movie-service-bluegreen
+        version: blue
+    spec:
+      containers:
+        - name: app
+          image: movie-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: APP_VERSION
+              value: "v1"
+            - name: DB_HOST
+              value: postgres-movie.movie-booking.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: movie_service
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5

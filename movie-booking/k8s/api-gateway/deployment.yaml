@@ -1,0 +1,138 @@
+# deployment.yaml - api-gateway.
+# Khac biet lon nhat so voi 4 service truoc: initContainer KHONG cho DB/Redis/
+# RabbitMQ, ma cho CHINH 4 SERVICE KIA san sang (qua /healthz cua tung
+# service) - vi vay Deployment nay PHAI duoc apply SAU CUNG (sau khi 4
+# service kia da chay), neu khong initContainer se cho mai va Pod khong bao
+# gio chuyen sang trang thai Running.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: movie-booking
+  labels:
+    app: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      # The gateway has no need to call the Kubernetes API; do not mount a token.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-backends
+          image: api-gateway:1.0.0
+          imagePullPolicy: IfNotPresent
+          args: ["-wait-backends"]
+          envFrom:
+            - configMapRef:
+                name: api-gateway-config
+            - secretRef:
+                name: api-gateway-secret
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 128Mi }
+
+      containers:
+        - name: app
+          image: api-gateway:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: api-gateway-config
+            - secretRef:
+                name: api-gateway-secret
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+        - name: log-shipper
+          image: log-shipper:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LOG_FILE_PATH
+              value: /var/log/app/app.log
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+        - name: nginx-ambassador
+          image: nginx-ambassador:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LISTEN_PORT
+              value: "9090"
+            - name: UPSTREAM_HOST
+              value: "127.0.0.1"
+            - name: UPSTREAM_PORT
+              value: "8080"
+          ports:
+            - containerPort: 9090
+              name: ambassador
+          readinessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+      volumes:
+        - name: app-logs
+          emptyDir: {}

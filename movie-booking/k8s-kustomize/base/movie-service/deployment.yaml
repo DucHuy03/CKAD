@@ -1,0 +1,150 @@
+# deployment.yaml - movie-service, Pod dau tien theo dung pattern 4-container.
+#
+# THU TU CHAY TRONG 1 POD:
+#   1. initContainers chay TUAN TU, TUNG CAI MOT, PHAI exit 0 het thi k8s
+#      moi cho phep cac container trong "containers:" duoc tao.
+#   2. Sau khi init xong, CA 3 container trong "containers:" (app,
+#      log-shipper, nginx-ambassador) duoc tao GAN NHU DONG THOI, KHONG co
+#      thu tu dam bao giua chung - day la ly do log-shipper phai tu "cho"
+#      file log xuat hien (xem entrypoint.sh) thay vi gia dinh app da chay truoc.
+#
+# IMAGE PULL POLICY: "IfNotPresent" LA BAT BUOC o day, khong phai tuy chon.
+# Docker Desktop k8s dung CHUNG Docker daemon voi lenh "docker build" ban
+# chay tay - nghia la image ":latest" ban vua build DA CO SAN trong daemon,
+# khong can push len registry nao. NHUNG neu de mac dinh (khong ghi
+# imagePullPolicy), k8s se dung policy mac dinh cho tag ":latest" la
+# "Always" - tuc la LUON co gang PULL tu Docker Hub (vi ten image trung voi
+# 1 kieu ten registry hop le), that bai vi image nay khong ton tai cong khai
+# tren Docker Hub -> Pod bi ImagePullBackOff. Day la loi CUC KY hay gap khi
+# moi bat dau dung image local, ghi imagePullPolicy: IfNotPresent giai quyet
+# triet de.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-service
+  namespace: movie-booking
+  labels:
+    app: movie-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: movie-service
+  template:
+    metadata:
+      labels:
+        app: movie-service
+    spec:
+      # Giu ban Kustomize cung chay duoc voi image non-root va volume log.
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: init-db-migrate
+          image: movie-service:latest
+          imagePullPolicy: IfNotPresent
+          # Dockerfile chi khai bao ENTRYPOINT ["./movie-service"], khong co
+          # CMD mac dinh - "args" o day chinh la phan CMD bi thieu do, duoc
+          # noi vao sau ENTRYPOINT. Khong can ghi "command" vi khong can doi
+          # entrypoint, chi can doi tham so dong lenh.
+          args: ["-wait-db", "-migrate"]
+          envFrom:
+            - configMapRef:
+                name: movie-service-config
+            - secretRef:
+                name: movie-service-secret
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+      containers:
+        - name: app
+          image: movie-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: movie-service-config
+            - secretRef:
+                name: movie-service-secret
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+        - name: log-shipper
+          # Pinned, not ":latest": that tag's build sets "USER app" (a
+          # non-numeric name), which fails the Pod's runAsNonRoot check.
+          # ":1.0.0" sets a numeric UID and is what the main system runs.
+          image: log-shipper:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LOG_FILE_PATH
+              value: /var/log/app/app.log
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+        - name: nginx-ambassador
+          image: nginx-ambassador:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LISTEN_PORT
+              value: "9090"
+            - name: UPSTREAM_HOST
+              value: "127.0.0.1" # cung Pod, cung network namespace voi container "app"
+            - name: UPSTREAM_PORT
+              value: "8080"
+          ports:
+            - containerPort: 9090
+              name: ambassador
+          readinessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+
+      volumes:
+        - name: app-logs
+          emptyDir: {}

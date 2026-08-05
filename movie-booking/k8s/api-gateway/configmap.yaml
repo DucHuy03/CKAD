@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: movie-booking
+data:
+  MOVIE_SERVICE_URL: "http://movie-service:8080"
+  BOOKING_SERVICE_URL: "http://booking-service:8080"
+  PAYMENT_SERVICE_URL: "http://payment-service:8080"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:8080"
+  JWT_EXPIRY_MINUTES: "60"
+  RATE_LIMIT_PER_MINUTE: "60"
+  HTTP_PORT: "8080"
+  LOG_FILE_PATH: /var/log/app/app.log

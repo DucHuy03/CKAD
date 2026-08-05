@@ -1,0 +1,20 @@
+# service.yaml
+#
+# type: NodePort (khac ClusterIP mac dinh cua 4 service kia) - vi day la
+# ENTRY POINT duy nhat cua he thong, can truy cap duoc TU BEN NGOAI cluster
+# (tu trinh duyet/curl tren may ban), khong chi tu cac Pod khac trong
+# cluster. Tren Docker Desktop, NodePort tu dong duoc expose ra localhost,
+# khong can cau hinh gi them.
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: movie-booking
+spec:
+  type: NodePort
+  selector:
+    app: api-gateway
+  ports:
+    - port: 8080
+      targetPort: 9090
+      nodePort: 30080 # co dinh port de de nho, thay vi de k8s tu chon ngau nhien (30000-32767)

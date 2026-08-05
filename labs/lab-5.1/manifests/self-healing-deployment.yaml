@@ -1,0 +1,21 @@
+# Nginx is used only as a deterministic probe target for this observability lab.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: lab51-self-healing, namespace: lab }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lab51-self-healing } }
+  template:
+    metadata: { labels: { app: lab51-self-healing } }
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          ports: [{ name: http, containerPort: 80 }]
+          lifecycle:
+            # The readiness file lets the lab deliberately remove/recreate it.
+            postStart: { exec: { command: [sh, -c, 'touch /tmp/ready'] } }
+          startupProbe: { exec: { command: [sh, -c, 'test -f /tmp/ready'] }, failureThreshold: 12, periodSeconds: 2 }
+          readinessProbe: { exec: { command: [sh, -c, 'test -f /tmp/ready'] }, periodSeconds: 3 }
+          livenessProbe: { httpGet: { path: /, port: http }, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 100m, memory: 128Mi } }

@@ -1,0 +1,130 @@
+# deployment.yaml - payment-service.
+# Xem giai thich day du o k8s/movie-service/deployment.yaml. Khac biet:
+# initContainer dung "-wait-rabbitmq" thay vi "-wait-redis".
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: movie-booking
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      # Cap quyen group cho emptyDir log trong khi van giu app chay non-root.
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: init-db-migrate
+          image: payment-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          args: ["-wait-db", "-wait-rabbitmq", "-migrate"]
+          envFrom:
+            - configMapRef:
+                name: payment-service-config
+            - secretRef:
+                name: payment-service-secret
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 128Mi }
+
+      containers:
+        - name: app
+          image: payment-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: payment-service-config
+            - secretRef:
+                name: payment-service-secret
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              # Readiness kiem tra ca PostgreSQL va AMQP channel. Dung cung
+              # endpoint cho liveness de Pod tu restart va ket noi lai sau
+              # khi RabbitMQ restart, thay vi mac ket 503 vo thoi han.
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+
+        - name: log-shipper
+          image: log-shipper:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LOG_FILE_PATH
+              value: /var/log/app/app.log
+          volumeMounts:
+            - name: app-logs
+              mountPath: /var/log/app
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+        - name: nginx-ambassador
+          image: nginx-ambassador:1.0.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: LISTEN_PORT
+              value: "9090"
+            - name: UPSTREAM_HOST
+              value: "127.0.0.1"
+            - name: UPSTREAM_PORT
+              value: "8080"
+          ports:
+            - containerPort: 9090
+              name: ambassador
+          readinessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /ambassador-healthz
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+
+      volumes:
+        - name: app-logs
+          emptyDir: {}

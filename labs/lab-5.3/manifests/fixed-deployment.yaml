@@ -1,0 +1,22 @@
+# Fixed counterpart: selector, labels and named targetPort all match.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: lab53-fixed, namespace: lab }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: lab53-fixed } }
+  template:
+    metadata: { labels: { app: lab53-fixed } }
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          ports: [{ name: http, containerPort: 80 }]
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 100m, memory: 128Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: lab53-fixed, namespace: lab }
+spec:
+  selector: { app: lab53-fixed }
+  ports: [{ port: 80, targetPort: http }]

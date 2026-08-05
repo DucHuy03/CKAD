@@ -1,0 +1,35 @@
+# deployment.yaml - MailHog, SMTP server gia lap CHI dung de test, khong
+# gui email that. Khong can PVC (du lieu email mat khi Pod restart - chap
+# nhan duoc cho moi truong lab).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailhog
+  namespace: movie-booking
+  labels:
+    app: mailhog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailhog
+  template:
+    metadata:
+      labels:
+        app: mailhog
+    spec:
+      containers:
+        - name: mailhog
+          image: mailhog/mailhog:v1.0.1
+          ports:
+            - containerPort: 1025
+              name: smtp
+            - containerPort: 8025
+              name: http
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

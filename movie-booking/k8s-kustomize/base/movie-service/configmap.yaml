@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: movie-service-config
+  namespace: movie-booking
+data:
+  # FQDN, not the bare Service name: overlays put this ConfigMap in "lab",
+  # a different namespace than where postgres-movie actually runs
+  # (movie-booking), so the bare name would never resolve there.
+  DB_HOST: postgres-movie.movie-booking.svc.cluster.local
+  DB_PORT: "5432"
+  DB_NAME: movie_service
+  DB_SSLMODE: disable
+  HTTP_PORT: "8080"
+  # LOG_FILE_PATH: app container ghi log vao day (qua package applog),
+  # log-shipper sidecar tail CUNG duong dan nay - 2 container phai khop
+  # tuyet doi gia tri nay (truyen qua CUNG 1 ConfigMap dam bao khong bao
+  # gio bi lech gia tri giua 2 noi).
+  LOG_FILE_PATH: /var/log/app/app.log

@@ -1,0 +1,27 @@
+# Requires an installed ingress-nginx controller. Two paths intentionally go
+# to different backends to demonstrate path routing for the CKAD rubric.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ticket-booking
+  namespace: movie-booking
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: ticket-booking.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /movies
+            pathType: Prefix
+            backend:
+              service:
+                name: movie-service
+                port:
+                  number: 8080

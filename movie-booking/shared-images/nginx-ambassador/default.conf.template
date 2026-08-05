@@ -1,0 +1,37 @@
+# default.conf.template
+#
+# 3 bien ${LISTEN_PORT} / ${UPSTREAM_HOST} / ${UPSTREAM_PORT} duoc thay the
+# boi entrypoint cua image nginx (envsubst) ngay khi container start, dua
+# tren bien moi truong duoc set trong Pod spec (Phase 4) hoac docker run/compose.
+#
+# LUU Y VE CU PHAP: cac bien nginx nhu $host, $remote_addr, $proxy_add_x_forwarded_for
+# KHONG bi envsubst dong vao vi chung khong phai la bien moi truong cua
+# container (envsubst chi thay the nhung ten trung khop voi bien moi truong
+# dang co trong container) - neu VO TINH dat ten 1 bien moi truong trung voi
+# ten bien nginx (vd dat env "host"), no se bi ghi de nham, nen tranh dat
+# ten bien moi truong theo cac tu ngu nginx hay dung (host, remote_addr...).
+
+server {
+    listen ${LISTEN_PORT};
+
+    # Endpoint rieng de kiem tra chinh ambassador con song (khac /healthz cua
+    # app phia sau) - huu ich khi debug rieng tang proxy voi tang app.
+    location /ambassador-healthz {
+        return 200 "ambassador ok\n";
+        add_header Content-Type text/plain;
+    }
+
+    location / {
+        proxy_pass http://${UPSTREAM_HOST}:${UPSTREAM_PORT};
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeout hop ly, tranh 1 backend cham lam nginx giu connection vo thoi han.
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+}

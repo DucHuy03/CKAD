@@ -1,0 +1,27 @@
+# database-migration-job.yaml — one-off database migration workload.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: movie-db-migrate-job
+  namespace: lab
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: movie-db-migrate-job
+          image: movie-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          args: ["-wait-db", "-migrate"]
+          env:
+            - name: DB_HOST
+              value: postgres-movie.movie-booking.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: movie_service
+            - name: DB_USER
+              value: postgres
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }

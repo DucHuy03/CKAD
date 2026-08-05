@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-demo-too-big
+  namespace: lab
+
+spec:
+  containers:
+  - name: app
+
+    image: nginx:1.27-alpine
+
+    resources:
+
+      requests:
+        cpu: 2
+        memory: 2Gi
+
+      limits:
+        cpu: 2
+        memory: 2Gi

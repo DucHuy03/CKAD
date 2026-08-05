@@ -1,0 +1,71 @@
+# lab-1.2-solution.yaml
+#
+# Day la DAP AN THAM KHAO cho Lab 1.2 - khong phai file de "apply cho nhanh".
+# Nen tu sua truoc, chi doi chieu file nay sau khi da thu.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: movie-catalog-multi
+  namespace: lab
+  labels:
+    app: movie-catalog-multi
+    component: movie-service
+spec:
+  initContainers:
+    - name: init-db-migrate
+      image: movie-service:1.0.0
+      imagePullPolicy: IfNotPresent
+      args: ["-wait-db", "-migrate"]
+      env:
+        - name: DB_HOST
+          value: postgres-movie.movie-booking.svc.cluster.local
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: movie_service
+        - name: DB_USER
+          value: postgres
+        - name: DB_PASSWORD
+          valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }
+
+  containers:
+    - name: app
+      image: movie-service:1.0.0
+      # resources:
+      #   requests:
+      #     cpu: 50m
+      #     memory: 64Mi
+      #   limits:
+      #     cpu: 250m
+      #     memory: 256Mi
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: DB_HOST
+          value: postgres-movie.movie-booking.svc.cluster.local
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: movie_service
+        - name: DB_USER
+          value: postgres
+        - name: DB_PASSWORD
+          valueFrom: { secretKeyRef: { name: lab-db-credentials, key: DB_PASSWORD } }
+        - name: LOG_FILE_PATH
+          value: /var/log/app/app.log
+      volumeMounts:
+        - name: app-logs
+          mountPath: /var/log/app
+
+    - name: log-shipper
+      image: log-shipper:1.0.0
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: LOG_FILE_PATH
+          value: /var/log/app/app.log
+      volumeMounts:
+        - name: app-logs
+          mountPath: /var/log/app
+
+  volumes:
+    - name: app-logs
+      emptyDir: {}

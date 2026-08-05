@@ -1,0 +1,15 @@
+# Defaults protect future Pods that accidentally omit resource settings.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: movie-booking-defaults
+  namespace: movie-booking
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: 25m
+        memory: 32Mi
+      default:
+        cpu: 250m
+        memory: 256Mi

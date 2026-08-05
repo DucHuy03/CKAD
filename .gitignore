@@ -1,0 +1,14 @@
+# Local configuration and generated credentials must never be committed.
+.env
+.env.*
+!.env.example
+secrets/
+*.secret.yaml
+
+# Test/build output.
+coverage.out
+bin/
+tmp/
+
+# Personal Claude Code settings (permission allowlist), not shared project config.
+.claude/settings.local.json
