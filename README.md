@@ -218,6 +218,71 @@ export LAB_DB_PASSWORD='...'
 bash scripts/create-lab-secrets.sh
 ```
 
+## Helm chart
+
+[`helm/movie-service`](helm/movie-service) is one generic chart that can
+deploy **any** of the five core services — not just movie-service despite
+the directory name (kept for backward compatibility with Lab 5.4). `Values.
+serviceName` picks which entry of the `services:` map in
+[`values.yaml`](helm/movie-service/values.yaml) gets deployed; every entry
+shares a `&defaults` YAML anchor (port, resource requests/limits — identical
+across all five services) and only overrides what's actually different
+(`image.repository`, `existingSecret`, `configMapName`):
+
+```yaml
+serviceName: movie-service   # default; override with --set
+
+defaults: &defaults
+  replicaCount: 1
+  service: { port: 8080 }
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 250m, memory: 256Mi }
+
+services:
+  movie-service:
+    <<: *defaults
+    image: { repository: movie-service, tag: "1.0.0", pullPolicy: IfNotPresent }
+    existingSecret: movie-service-secret
+    configMapName: movie-service-config
+  booking-service: { ... }
+  payment-service: { ... }
+  notification-service: { ... }
+  api-gateway: { ... }
+```
+
+The chart never carries credentials itself — it references the ConfigMap
+and Secret that `scripts/deploy-kubernetes.sh` (or, for the `lab` namespace,
+`labs/lab-5.4/run.sh`) already created, the same objects the plain-manifest
+Deployment for that service uses.
+
+```bash
+# Deploy movie-service (the default serviceName) into an existing namespace:
+helm install my-release helm/movie-service -n <namespace> \
+  --set services.movie-service.image.tag=1.0.0
+
+# To target a DIFFERENT service, set serviceName so the chart picks its
+# entry from the services: map, then override that entry's own image tag:
+helm install my-booking helm/movie-service -n <namespace> \
+  --set serviceName=booking-service \
+  --set services.booking-service.image.tag=1.0.0
+
+# Upgrade (new image tag) and inspect history:
+helm upgrade my-booking helm/movie-service -n <namespace> \
+  --set serviceName=booking-service \
+  --set services.booking-service.image.tag=1.0.1
+helm history my-booking -n <namespace>
+
+# Roll back to the previous revision:
+helm rollback my-booking 1 -n <namespace>
+```
+
+`labs/lab-5.4/run.sh` runs exactly this install → upgrade → rollback cycle
+end to end against movie-service in the `lab` namespace — read it for a
+complete worked example, including why it has to pre-create the ConfigMap
+by hand (the chart intentionally ships no `configmap.yaml` template, same
+external-dependency pattern as the Secret).
+
 ## Debugging
 
 Standard triage order for a Pod that isn't `Ready`:
