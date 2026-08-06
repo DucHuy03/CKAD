@@ -67,7 +67,7 @@ database riêng, giao tiếp đồng bộ (HTTP qua Kubernetes DNS) và bất đ
 | N2 | NodePort hoặc Ingress cho traffic ngoài | ✅ | Cả 2: NodePort `api-gateway` (30080) **và** Ingress |
 | N3 | Ingress ≥2 path/host route khác backend | ✅ | Ingress route `/api` và `/movies` |
 | N4 | NetworkPolicy: default-deny + allow tường minh + hạn chế egress | ✅* | `default-deny-ingress` phủ **toàn bộ** Pod trong namespace; 7 policy allow-list riêng cho từng datastore (mỗi Postgres chỉ nhận từ đúng service chủ, Redis chỉ từ booking-service, RabbitMQ chỉ từ payment+notification-service, MailHog chỉ từ notification-service) + egress restrict DNS-only ra ngoài namespace. *Docker Desktop không có CNI hỗ trợ policy nên không enforce được live — manifest đầy đủ, đã ghi rõ giới hạn |
-| N5 | Endpoints đã verify, không Service mồ côi | ⚠️ | `movie-booking/k8s/phase5-testing/{smoke-test.sh,e2e-test.sh}` verify Endpoints — script còn giả định cứng context `docker-desktop` |
+| N5 | Endpoints đã verify, không Service mồ côi | ✅ | `movie-booking/k8s/phase5-testing/{smoke-test.sh,e2e-test.sh}` verify Endpoints; context check giờ đọc `${EXPECTED_CONTEXT:-docker-desktop}` (override được cho cluster khác) thay vì hardcode, `e2e-test.sh` đã dùng `${BASE_URL:-...}` từ trước |
 
 ## 6. §4.5 — Observability and Maintenance
 
@@ -128,3 +128,4 @@ Cả 3 điểm trên đã ghi trong `README.md` mục "Known limitations" và
 - `curl http://localhost:30080/healthz` → `200`.
 - Helm install → upgrade → rollback (`labs/lab-5.4`) → xác nhận rollback đúng về image cũ.
 - CronJob dọn hold hết hạn → chạy job thủ công → `Completed`, log đúng.
+- `smoke-test.sh` với `EXPECTED_CONTEXT` mặc định lẫn override → vẫn 22/22 PASS.

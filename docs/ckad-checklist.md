@@ -24,7 +24,7 @@
 | N1–N2 | done | Internal ClusterIP Services for east-west traffic; NodePort `api-gateway` (30080) + Ingress for external entry. |
 | N3 | done | Ingress routes ≥2 paths (`/api`, `/movies`) to different backends. |
 | N4 | done* | `default-deny-ingress` now covers every Pod in the namespace (not just the 5 API Pods); explicit allow-lists added per datastore (each Postgres from its one owning service, Redis from booking-service, RabbitMQ AMQP from payment+notification-service, MailHog SMTP from notification-service) plus the existing gateway/ingress/egress rules. *Manifests are complete and apply cleanly, but Docker Desktop ships no policy-capable CNI, so enforcement can't be demonstrated live in this environment (documented in README "Known limitations"). |
-| N5 | partial | `movie-booking/k8s/phase5-testing/{smoke-test.sh,e2e-test.sh}` check Endpoints; still assume the `docker-desktop` context specifically. |
+| N5 | done | `movie-booking/k8s/phase5-testing/{smoke-test.sh,e2e-test.sh}` check Endpoints; context check is now `${EXPECTED_CONTEXT:-docker-desktop}` (override for other clusters) instead of a hardcoded assert, `e2e-test.sh` already used `${BASE_URL:-...}`. |
 | O1–O2 | done* | Liveness+readiness on all 5 core services, all 4 Postgres, Redis, and RabbitMQ. *MailHog (a demo-only SMTP catcher, no HTTP health contract of its own beyond the web UI) has resources but no probes — minor, undemonstrated gap, not a core service. |
 | O3 | done | RabbitMQ has a `startupProbe` (~150s ceiling) ahead of its readiness/liveness probes, for its slow Erlang VM boot. |
 | O4 | done | README "Debugging" section covers `kubectl logs` (incl. `-c`/`--previous`), `describe`, `get events --sort-by`, and `top`, plus the Endpoints/selector-mismatch triage tip. |
@@ -45,5 +45,3 @@ above for why each one is lower priority than what's already fixed:
    git history on the public repo. Per explicit instruction, only the live
    in-cluster password will be rotated (once `kubectl exec` is reliable
    again); no history rewrite is planned.
-4. **N5** — smoke/e2e scripts hard-assume `docker-desktop`; making them
-   context-agnostic is a small script change, not yet done.

@@ -9,6 +9,8 @@
 set -uo pipefail
 
 NAMESPACE="movie-booking"
+# Override with: EXPECTED_CONTEXT=minikube bash smoke-test.sh
+EXPECTED_CONTEXT="${EXPECTED_CONTEXT:-docker-desktop}"
 PASS=0
 FAIL=0
 
@@ -29,9 +31,9 @@ check() {
 
 echo "=== 1. Kiem tra context kubectl ==="
 CTX=$(kubectl config current-context 2>/dev/null)
-echo "  context hien tai: $CTX"
-[ "$CTX" = "docker-desktop" ]
-check "context la docker-desktop" $?
+echo "  context hien tai: $CTX (mong doi: $EXPECTED_CONTEXT)"
+[ "$CTX" = "$EXPECTED_CONTEXT" ]
+check "context la $EXPECTED_CONTEXT (doi bang bien EXPECTED_CONTEXT neu dung cluster khac)" $?
 
 echo ""
 echo "=== 2. Kiem tra hạ tầng (Postgres x4, Redis, RabbitMQ, MailHog) ==="

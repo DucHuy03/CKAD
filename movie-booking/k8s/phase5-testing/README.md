@@ -10,7 +10,9 @@ chmod +x smoke-test.sh e2e-test.sh
 ./e2e-test.sh     # kiem tra LUONG NGHIEP VU that (login -> dat ve -> thanh toan -> email)
 ```
 
-Yêu cầu: đã cài `jq`, `kubectl` trỏ đúng context `docker-desktop`, đã hoàn
+Yêu cầu: đã cài `jq`, `kubectl` trỏ đúng cluster (mặc định mong đợi context
+tên `docker-desktop`; nếu dùng cluster khác, chạy
+`EXPECTED_CONTEXT=<ten-context-cua-ban> ./smoke-test.sh`), đã hoàn
 tất Phase 4 (5 Pod đều `3/3 Running`).
 
 ## Vì sao tách 2 script thay vì gộp làm 1
@@ -22,7 +24,7 @@ lỗi khó hiểu (timeout, connection refused) che mất nguyên nhân gốc th
 
 ## `smoke-test.sh` kiểm tra gì
 
-1. Context kubectl đúng `docker-desktop` (tránh táo tợn chạy nhầm cluster khác)
+1. Context kubectl đúng cluster mong đợi (mặc định `docker-desktop`, đổi được qua biến `EXPECTED_CONTEXT` — tránh chạy nhầm cluster khác)
 2. 4 Postgres StatefulSet Pod đều `Running`
 3. Redis/RabbitMQ/MailHog Deployment có ít nhất 1 replica Ready
 4. **5 microservice đều đúng 3/3 container Ready** (app + log-shipper + nginx-ambassador — initContainer không tính vào con số này)
