@@ -1,6 +1,6 @@
 apiVersion: v2
 name: movie-service
-description: Movie catalog component of Ticket Booking Service
+description: Generic single-service chart for Ticket Booking Service (movie-service by default; see values-*.yaml for the other core services)
 type: application
 version: 0.1.0
 appVersion: "1.0.0"

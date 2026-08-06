@@ -25,14 +25,15 @@ if ! docker image inspect movie-service:1.0.1 >/dev/null 2>&1; then
   docker build -t movie-service:1.0.1 "$ROOT/movie-booking/movie-service"
 fi
 
-# The chart's fullname (templates/_helpers.tpl) is fixed to the Chart name
-# ("movie-service"), not the release name - the Deployment/Service it creates
-# are always called "movie-service" in this namespace, regardless of $RELEASE.
+# The chart's fullname (templates/_helpers.tpl) is Values.serviceName, which
+# defaults to "movie-service" (values.yaml) - the Deployment/Service it
+# creates are always called "movie-service" in this namespace, regardless of
+# $RELEASE, unless --set serviceName=<other-service> is passed.
 WORKLOAD="movie-service"
 
-helm upgrade --install "$RELEASE" "$ROOT/helm/movie-service" -n "$NAMESPACE" --create-namespace --set image.tag=1.0.0
+helm upgrade --install "$RELEASE" "$ROOT/helm/movie-service" -n "$NAMESPACE" --create-namespace --set services.movie-service.image.tag=1.0.0
 kubectl rollout status "deployment/$WORKLOAD" -n "$NAMESPACE" --timeout=60s
-helm upgrade "$RELEASE" "$ROOT/helm/movie-service" -n "$NAMESPACE" --set image.tag=1.0.1
+helm upgrade "$RELEASE" "$ROOT/helm/movie-service" -n "$NAMESPACE" --set services.movie-service.image.tag=1.0.1
 kubectl rollout status "deployment/$WORKLOAD" -n "$NAMESPACE" --timeout=60s
 helm history "$RELEASE" -n "$NAMESPACE"
 helm rollback "$RELEASE" 1 -n "$NAMESPACE"

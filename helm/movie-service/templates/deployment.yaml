@@ -1,12 +1,16 @@
 # Helm package intentionally uses an existing runtime Secret created by
 # scripts/create-secrets.sh, so Helm values never contain credentials.
+#
+# .Values.serviceName selects which entry of .Values.services this release
+# deploys - see values.yaml.
+{{- $svc := index .Values.services .Values.serviceName }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "movie-service.fullname" . }}
   labels: {{- include "movie-service.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ $svc.replicaCount }}
   selector:
     matchLabels: {{- include "movie-service.selectorLabels" . | nindent 6 }}
   template:
@@ -17,14 +21,14 @@ spec:
         runAsNonRoot: true
         seccompProfile: { type: RuntimeDefault }
       containers:
-        - name: movie-service
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: app
+          image: "{{ $svc.image.repository }}:{{ $svc.image.tag }}"
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
           ports: [{ name: http, containerPort: 8080 }]
           envFrom:
-            - configMapRef: { name: movie-service-config }
-            - secretRef: { name: {{ .Values.existingSecret }} }
-          resources: {{- toYaml .Values.resources | nindent 12 }}
+            - configMapRef: { name: {{ $svc.configMapName }} }
+            - secretRef: { name: {{ $svc.existingSecret }} }
+          resources: {{- toYaml $svc.resources | nindent 12 }}
           readinessProbe: { httpGet: { path: /ready, port: http } }
           livenessProbe: { httpGet: { path: /healthz, port: http } }
           securityContext:

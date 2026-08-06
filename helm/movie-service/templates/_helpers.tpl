@@ -1,5 +1,5 @@
 {{- define "movie-service.fullname" -}}
-{{- default .Chart.Name .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- .Values.serviceName | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- define "movie-service.labels" -}}
 app.kubernetes.io/name: {{ include "movie-service.fullname" . }}

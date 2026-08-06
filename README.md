@@ -1,5 +1,43 @@
 # Ticket Booking System — CKAD Capstone
 
+## Giới thiệu dự án
+
+**Bài toán nghiệp vụ:** hệ thống đặt vé xem phim (cinema ticket booking).
+Người dùng xem danh sách phim/suất chiếu, giữ chỗ ghế, thanh toán, và nhận
+thông báo xác nhận qua email — mô phỏng đúng luồng nghiệp vụ thật của một
+rạp chiếu phim, không phải app "hello world".
+
+**Kiến trúc microservices** — 5 service Go độc lập, mỗi service một
+bounded context và một datastore riêng (đúng yêu cầu §3.1/§2.2 của
+`capstone-requirements.md`):
+
+| Service | Vai trò | Datastore riêng |
+| --- | --- | --- |
+| `api-gateway` | Cổng vào duy nhất cho traffic ngoài (NodePort `30080`); xác thực JWT, rate limit | — |
+| `movie-service` | Quản lý phim, rạp, suất chiếu | Postgres riêng |
+| `booking-service` | Giữ ghế (hold) và tạo booking | Postgres + Redis (TTL cho hold) |
+| `payment-service` | Xử lý thanh toán, phát sự kiện thanh toán | Postgres + RabbitMQ (publisher) |
+| `notification-service` | Nghe sự kiện thanh toán, gửi email/QR xác nhận | Postgres + RabbitMQ (consumer) + MailHog |
+
+Toàn bộ traffic từ bên ngoài chỉ đi qua `api-gateway`; các service còn lại
+chỉ lộ ClusterIP và giao tiếp nội bộ qua Kubernetes DNS — đúng mô hình
+đồng bộ (HTTP) kết hợp bất đồng bộ (RabbitMQ) mà đề bài yêu cầu phải tài
+liệu hoá (§3.1 "Sync vs async").
+
+**Mục tiêu dự án**: đây là bài capstone CKAD (Certified Kubernetes
+Application Developer) — dùng chính hệ thống trên làm đối tượng thực hành,
+đóng gói container, triển khai lên Kubernetes, và trình diễn toàn bộ các
+domain thi CKAD (multi-container Pod, rolling update, Config/Secret, RBAC,
+quota, Service/Ingress/NetworkPolicy, PVC, probe, Helm, Kustomize) thông
+qua 20 lab hướng dẫn (chi tiết ở mục
+["Mô tả các Lab"](#mô-tả-các-lab) cuối file).
+
+Toàn bộ yêu cầu chi tiết (mục §1–§8) nằm trong
+[`capstone-requirements.md`](capstone-requirements.md); README này là bản
+hiện thực hoá + hướng dẫn vận hành cho đúng yêu cầu đó.
+
+---
+
 A cinema ticket booking platform built as five independently deployable Go
 microservices, used as the hands-on subject for a CKAD (Certified Kubernetes
 Application Developer) capstone: containerize it, deploy it to Kubernetes,
@@ -220,3 +258,63 @@ labels (see Lab 5.3 for a worked example of the latter).
   `labs/`. They are functional, just not yet relocated.
 - See `docs/ckad-checklist.md` for the full requirement-by-requirement gap
   list against the capstone rubric.
+
+## Mô tả các Lab
+
+20 lab trong [`labs/`](labs/), chia theo 5 ngày học tương ứng 5 domain thi
+CKAD (bám sát §9 của `capstone-requirements.md`). Mỗi lab chạy độc lập qua
+`bash labs/lab-<id>/run.sh` rồi `bash labs/lab-<id>/check.sh` (xem mục
+["Running the CKAD labs"](#running-the-ckad-labs) ở trên).
+
+**Ngày 1 — Application Design and Build (20%)**
+
+| Lab | Nội dung |
+| --- | --- |
+| 1.1 — The 60-Second Pod | Tạo Pod bằng lệnh imperative kèm labels/env/resources; export manifest bằng `--dry-run=client -o yaml`; kiểm tra trạng thái Pod không cần mở editor (tốc độ thi) |
+| 1.2 — Init + Sidecar Pattern | Pod nhiều container: init container, app container, sidecar; chia sẻ dữ liệu qua `emptyDir`; xem log qua `kubectl logs -c` |
+| 1.3 — Jobs & CronJobs | Chạy Job một lần tới khi hoàn tất với `backoffLimit`; tạo CronJob sinh Job theo lịch; phân biệt Job/CronJob với Deployment |
+| 1.4 — Label & Annotation Drill | Tạo hàng loạt Pod và cập nhật label trên nhiều object; truy vấn bằng label selector; dùng `--overwrite` |
+
+**Ngày 2 — Application Deployment (20%)**
+
+| Lab | Nội dung |
+| --- | --- |
+| 2.1 — Rolling Update & Rollback | Rolling update từ v1 sang v2; theo dõi `rollout status`; rollback sau khi giả lập deploy lỗi |
+| 2.2 — Blue/Green Switch | Chạy song song 2 Deployment (blue/green); chuyển traffic bằng cách đổi selector của 1 Service duy nhất |
+| 2.3 — Scale & HPA | Scale thủ công Deployment lên 10 replica; cấu hình HPA theo ngưỡng CPU 50% |
+| 2.4 — Kustomize Overlay | Tổ chức thư mục `base/` + overlay; patch image tag và số replica mà không lặp lại manifest |
+
+**Ngày 3 — Application Environment, Configuration & Security (25%)**
+
+| Lab | Nội dung |
+| --- | --- |
+| 3.1 — ConfigMap & Secret Injection | Tạo Secret từ file, ConfigMap từ literal; inject Secret qua env var và ConfigMap qua volume trong cùng 1 Pod |
+| 3.2 — Security Context Lockdown | Chạy Pod non-root với root filesystem read-only; drop toàn bộ capabilities; tắt privilege escalation |
+| 3.3 — ServiceAccount & RBAC | Tạo ServiceAccount, Role, RoleBinding; Pod dùng token của SA để gọi API list Pod trong namespace |
+| 3.4 — Namespace Quotas | Áp ResourceQuota và LimitRange; quan sát Pod bị từ chối khi vượt quota |
+
+**Ngày 4 — Services and Networking (20%)**
+
+| Lab | Nội dung |
+| --- | --- |
+| 4.1 — ClusterIP & NodePort | Tạo backend ClusterIP và frontend NodePort; chẩn đoán và sửa lỗi selector không khớp; kiểm tra Endpoints |
+| 4.2 — Ingress Routing | Route `/` tới frontend, `/api` tới backend qua Ingress; xác minh qua endpoint của ingress controller |
+| 4.3 — NetworkPolicy Isolation | Chỉ cho phép traffic frontend → backend; chặn egress của backend ra internet (`0.0.0.0/0`) |
+| 4.4 — Persistent Volume Claims | Cấp PVC 1Gi bằng dynamic provisioning; mount vào Pod, ghi dữ liệu, xoá Pod, tạo lại, xác minh dữ liệu còn nguyên |
+
+**Ngày 5 — Application Observability and Maintenance (15%)**
+
+| Lab | Nội dung |
+| --- | --- |
+| 5.1 — Self-Healing App | Cấu hình liveness probe kiểu HTTP; readiness probe kiểu file; tuỳ chọn startup probe cho container khởi động chậm |
+| 5.2 — CLI Observability | Dùng `kubectl logs` với `-c` và `--previous`; đọc Events qua `describe`/`get events`; dùng `kubectl top` xem tài nguyên |
+| 5.3 — Broken YAML Triage | Sửa lỗi selector không khớp trong Deployment; sửa lỗi `targetPort` của Service; sửa tên image sai |
+| 5.4 — Helm Deploy & Rollback | Cài Helm chart kèm override values; upgrade release rồi rollback về revision trước |
+
+Một số lab (đặc biệt 3.4, 4.1) trông "đơn giản" hơn các lab khác — đây là
+chủ đích của đề bài (§9 chỉ yêu cầu vài bullet ngắn gọn mỗi lab, tập trung
+đúng 1-2 khái niệm CKAD cụ thể), không phải thiếu sót. Lab nào bị chặn bởi
+giới hạn môi trường (thiếu ingress controller cho 4.2, CNI không hỗ trợ
+NetworkPolicy cho 4.3 — xem [Known limitations](#known-limitations)) vẫn
+chạy đúng logic, chỉ không thể trình diễn hiệu ứng thật trên
+Docker Desktop.

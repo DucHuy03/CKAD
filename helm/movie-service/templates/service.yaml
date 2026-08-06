@@ -1,4 +1,5 @@
 # ClusterIP is the east-west service used by other in-cluster components.
+{{- $svc := index .Values.services .Values.serviceName }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -8,5 +9,5 @@ spec:
   selector: {{- include "movie-service.selectorLabels" . | nindent 4 }}
   ports:
     - name: http
-      port: {{ .Values.service.port }}
+      port: {{ $svc.service.port }}
       targetPort: http
