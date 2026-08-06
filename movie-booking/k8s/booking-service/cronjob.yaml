@@ -1,0 +1,41 @@
+# cronjob.yaml - scheduled cleanup of expired seat holds, production version
+# of the same workload demoed in labs/lab-1.3. Runs booking-service in its
+# "-cleanup-expired-holds" mode (see cmd/server/main.go): scans Postgres for
+# HOLD bookings past expires_at, marks them EXPIRED, and clears any leftover
+# Redis hold key. Reuses the real booking-service ConfigMap/Secret instead of
+# duplicating DB_HOST/REDIS_ADDR by hand.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: booking-cleanup-cronjob
+  namespace: movie-booking
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+          containers:
+            - name: booking-cleanup
+              image: booking-service:1.0.0
+              imagePullPolicy: IfNotPresent
+              args: ["-cleanup-expired-holds"]
+              envFrom:
+                - configMapRef:
+                    name: booking-service-config
+                - secretRef:
+                    name: booking-service-secret
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests: { cpu: 25m, memory: 32Mi }
+                limits: { cpu: 100m, memory: 128Mi }

@@ -1,18 +1,13 @@
-# Default-deny ingress establishes isolation; the explicit rules below permit
-# only gateway-to-service HTTP traffic used by the application.
+# Default-deny ingress for every Pod in the namespace (API services AND
+# stateful dependencies) - the explicit allow rules below (one per datastore
+# plus gateway-to-service) are what actually permit traffic.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: default-deny-ingress
   namespace: movie-booking
 spec:
-  # Limit the initial policy to API Pods. Stateful dependencies remain outside
-  # this policy until their full DB/broker allow-list is added.
-  podSelector:
-    matchExpressions:
-      - key: app
-        operator: In
-        values: [api-gateway, movie-service, booking-service, payment-service, notification-service]
+  podSelector: {}
   policyTypes: [Ingress]
 ---
 apiVersion: networking.k8s.io/v1
@@ -89,3 +84,129 @@ spec:
       ports:
         - protocol: TCP
           port: 9090
+---
+# Datastore allow-lists: each Postgres accepts connections only from the one
+# service that owns it (database-per-service, enforced at the network layer
+# too - not just by convention).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-movie-service-to-postgres
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: postgres-movie }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: movie-service } }
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-booking-service-to-postgres
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: postgres-booking }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: booking-service } }
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-payment-service-to-postgres
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: postgres-payment }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: payment-service } }
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-service-to-postgres
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: postgres-notification }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: notification-service } }
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Redis only backs booking-service's seat holds (TTL cache) - no other
+# service has a reason to reach it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-booking-service-to-redis
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: redis }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: booking-service } }
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# RabbitMQ AMQP: payment-service publishes, notification-service consumes.
+# Management UI (15672) is intentionally left without an allow rule - nothing
+# in-cluster needs it; reach it via kubectl port-forward for manual checks.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mq-clients-to-rabbitmq
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: rabbitmq }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values: [payment-service, notification-service]
+      ports:
+        - protocol: TCP
+          port: 5672
+---
+# MailHog only receives SMTP from notification-service; its web UI (8025) is
+# for manual inspection via port-forward, not an in-cluster caller.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-notification-service-to-mailhog
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchLabels: { app: mailhog }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: notification-service } }
+      ports:
+        - protocol: TCP
+          port: 1025

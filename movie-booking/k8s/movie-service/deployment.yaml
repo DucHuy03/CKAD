@@ -76,6 +76,11 @@ spec:
           volumeMounts:
             - name: app-logs
               mountPath: /var/log/app
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
               path: /ready

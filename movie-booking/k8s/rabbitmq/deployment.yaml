@@ -39,21 +39,29 @@ spec:
           # RabbitMQ's Erlang VM can take well over 60s to finish starting
           # under load; readiness/livenessProbe alone raced that and killed
           # the container mid-startup. startupProbe holds off both until
-          # the first successful ping, up to 150s, before they take over.
+          # the AMQP port accepts connections, up to 150s, before they take over.
+          #
+          # tcpSocket, not exec "rabbitmq-diagnostics -q ping": Docker
+          # Desktop's CRI exec channel is known to fail intermittently with
+          # "http: server gave HTTP response to HTTPS client" (breaks
+          # kubectl exec too, not just probes) - an exec probe on this
+          # cluster can crash-loop a perfectly healthy RabbitMQ. TCP accept
+          # on 5672 is a weaker signal than a real AMQP ping, but it's the
+          # one that doesn't depend on a broken code path.
           startupProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            tcpSocket:
+              port: amqp
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 30
           readinessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            tcpSocket:
+              port: amqp
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
-            exec:
-              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            tcpSocket:
+              port: amqp
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
