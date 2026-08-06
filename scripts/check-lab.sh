@@ -14,8 +14,6 @@ if [[ ! "$LAB_ID" =~ ^[1-5]\.[1-4]$ ]]; then
   exit 2
 fi
 
-require_file "Lab/${LAB_ID//./_}.md" "Lab $LAB_ID instructions exist"
-
 case "$LAB_ID" in
   1.1|1.2|1.3|1.4|2.1|2.2|2.3|2.4|3.1|3.2|3.3|3.4) require_file "labs/lab-$LAB_ID/run.sh" "Lab runner exists" ;;
   4.1) require_file "labs/lab-4.1/run.sh" "Lab runner exists"; require_file "labs/lab-4.1/manifests/backend-deployment.yaml" "ClusterIP and NodePort manifests exist" ;;

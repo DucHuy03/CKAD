@@ -19,6 +19,9 @@ spec:
       labels:
         app: booking-service
     spec:
+      # Least-privilege SA (movie-booking/k8s/security/serviceaccount-rbac.yaml):
+      # get/list Pods only, so this workload isn't running as "default".
+      serviceAccountName: booking-observer
       # Cap quyen group cho emptyDir log trong khi van giu app chay non-root.
       securityContext:
         runAsNonRoot: true

@@ -40,6 +40,34 @@ spec:
         - protocol: TCP
           port: 9090
 ---
+# Restrict egress for the 5 API Pods: DNS + anything inside this namespace
+# (Postgres, Redis, RabbitMQ, MailHog, inter-service calls) is allowed;
+# everything else, including the public internet, is denied by omission.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: restrict-egress
+  namespace: movie-booking
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [api-gateway, movie-service, booking-service, payment-service, notification-service]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector: {}
+---
 # Ingress controller traffic is allowed only to public gateway/catalog paths.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

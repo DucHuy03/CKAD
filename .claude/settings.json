@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(command -v git-filter-repo)",
+      "Bash(pip show *)",
+      "Bash(command -v bfg)",
+      "Read(//d//**)",
+      "Bash(bash scripts/demo.sh)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

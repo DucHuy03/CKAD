@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
-# Removes only the Lab 5.4 Helm release.
+# Removes the Lab 5.4 Helm release and the ConfigMap run.sh pre-created for it.
 set -euo pipefail
-helm uninstall "${RELEASE:-lab54-movie-service}" -n "${NAMESPACE:-lab}" --ignore-not-found
+NAMESPACE="${NAMESPACE:-lab}"
+helm uninstall "${RELEASE:-lab54-movie-service}" -n "$NAMESPACE" --ignore-not-found
+kubectl delete configmap movie-service-config -n "$NAMESPACE" --ignore-not-found

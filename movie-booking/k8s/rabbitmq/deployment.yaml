@@ -36,16 +36,24 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/rabbitmq
+          # RabbitMQ's Erlang VM can take well over 60s to finish starting
+          # under load; readiness/livenessProbe alone raced that and killed
+          # the container mid-startup. startupProbe holds off both until
+          # the first successful ping, up to 150s, before they take over.
+          startupProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
-            initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             exec:
               command: ["rabbitmq-diagnostics", "-q", "ping"]
-            initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
           resources:

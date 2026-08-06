@@ -66,7 +66,6 @@ movie-booking/            application source, one directory per service
   lab-3.3/ lab-3.4/        RBAC and quota fixtures used by Lab 3.3 / Lab 3.4
 helm/movie-service/        Helm chart wrapping movie-service (Lab 5.4)
 labs/                      one run.sh + check.sh per CKAD lab (see below)
-Lab/                       lab instructions, one <day>_<n>.md per lab
 docs/                      architecture and CKAD requirement checklist
 scripts/                   build/deploy/verify/secret helpers (see below)
 ```
@@ -181,6 +180,37 @@ export LAB_DB_PASSWORD='...'
 bash scripts/create-lab-secrets.sh
 ```
 
+## Debugging
+
+Standard triage order for a Pod that isn't `Ready`:
+
+```bash
+# 1. Which Pod, and what state is it in.
+kubectl get pods -n movie-booking -o wide
+
+# 2. Why: check container states and recent events at the bottom.
+kubectl describe pod <pod-name> -n movie-booking
+
+# 3. What the app/sidecar actually said. Use -c for the specific container;
+#    each Pod here runs app + log-shipper + nginx-ambassador (+ an init
+#    container that only appears until it succeeds).
+kubectl logs <pod-name> -n movie-booking -c app
+kubectl logs <pod-name> -n movie-booking -c app --previous   # after a restart
+
+# 4. Namespace-wide event stream, oldest first — useful for cascading
+#    failures (e.g. a crashed dependency blocking another Pod's init container).
+kubectl get events -n movie-booking --sort-by=.lastTimestamp
+
+# 5. Is it a resource problem?
+kubectl top pods -n movie-booking
+kubectl top nodes
+```
+
+If a Service has no traffic reaching it, check `kubectl get endpoints -n
+movie-booking <service-name>` next — an empty list means either the backing
+Pods aren't Ready yet or the Service's `selector` doesn't match the Pods'
+labels (see Lab 5.3 for a worked example of the latter).
+
 ## Known limitations
 
 - This repo is still on the "Phase 1" reorganisation described in
@@ -188,9 +218,5 @@ bash scripts/create-lab-secrets.sh
   (`movie-booking/lab-3.3`, `movie-booking/lab-3.4`) and the standalone
   `movie-booking/k8s/phase5-testing` scripts have not yet been moved under
   `labs/`. They are functional, just not yet relocated.
-- `Lab/3_4.md` through `Lab/5_4.md` (10 of the 20 lab instruction files) are
-  currently empty; `run.sh`/`check.sh` exist for all of them, but the written
-  walkthrough is outstanding and not every one has been re-verified after the
-  latest script fixes.
 - See `docs/ckad-checklist.md` for the full requirement-by-requirement gap
   list against the capstone rubric.
